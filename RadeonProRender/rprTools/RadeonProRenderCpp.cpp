@@ -1,6 +1,19 @@
+/*****************************************************************************\
+*
+*  Module Name    RadeonProRenderCpp.cpp
+*  Project        AMD Radeon ProRender
+*
+*  Description    Radeon ProRender Interface header
+*
+*  Copyright(C) 2017-2021 Advanced Micro Devices, Inc. All rights reserved.
+*
+\*****************************************************************************/
+
 #include "RadeonProRender.hpp"
+#include "RadeonProRender_MaterialX.h"
 #include <cassert>
 #include <vector>
+#include "rprDeprecatedApi.h"
 
 #ifdef RPR_CPPWRAPER_DISABLE_MUTEXLOCK
 #define RPR_CPPWRAPER_MUTEXLOCK
@@ -337,6 +350,11 @@ IESLight* Context::CreateIESLight(Status* out_status) {
 }
 
 MaterialXNode* Context::CreateMaterialXNode(char const* xmlData, char const* basePath, int imageAlreadyCreated_count, char const** imageAlreadyCreated_paths, rpr::Image** imageAlreadyCreated_list, Status* out_status) {
+ 
+    
+/*
+// ... WAITING STABLE  rprLoadMaterialX  API  BEFORE IMPLEMENTING THE C++ WRAPPER ...
+ 
     std::vector<rpr_image> imageAlreadyCreated_handles;
     if (imageAlreadyCreated_count > 0) {
         imageAlreadyCreated_handles.reserve(imageAlreadyCreated_count);
@@ -364,6 +382,10 @@ MaterialXNode* Context::CreateMaterialXNode(char const* xmlData, char const* bas
         return nullptr;
     }
     return new MaterialXNode(*this, nodes, numNodes, images, numImages, rootNodeIdx);
+*/
+
+
+    return nullptr;
 }
 
 ContextObject::~ContextObject() {
@@ -436,11 +458,25 @@ Status Context::SetAOV(Aov aov, FrameBuffer* frame_buffer) {
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
-Status Context::SetAOVindexLookup(rpr_int key, rpr_float colorR, rpr_float colorG, rpr_float colorB, rpr_float colorA) {
+Status Context::SetAOVindexLookup(rpr_int key, float colorR, float colorG, float colorB, float colorA) {
     RPR_CPPWRAPER_CALL_PREFIX
     rprContextSetAOVindexLookup(m_context, key, colorR, colorG, colorB, colorA)
     RPR_CPPWRAPER_CALL_SUFFIX
 }
+
+Status Context::SetAOVindicesLookup(rpr_int keyOffset, rpr_int keyCount, rpr_float const * colorRGBA) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprContextSetAOVindicesLookup(m_context, keyOffset, keyCount, colorRGBA)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
+
+Status Context::SetCuttingPlane(rpr_int index, float x, float y, float z, float w) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprContextSetCuttingPlane(m_context, index, x, y, z, w)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
 
 Status Context::SetScene(Scene* scene) {
     RPR_CPPWRAPER_CALL_PREFIX
@@ -523,9 +559,9 @@ Status Context::GetFunctionPtr(rpr_char const* function_name, void** out_functio
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
-Status Context::ResolveFrameBuffer(FrameBuffer* src_frame_buffer, FrameBuffer* dst_frame_buffer, rpr_bool normalizeOnly) {
+Status Context::ResolveFrameBuffer(FrameBuffer* src_frame_buffer, FrameBuffer* dst_frame_buffer, rpr_bool noDisplayGamma) {
     RPR_CPPWRAPER_CALL_PREFIX
-    rprContextResolveFrameBuffer(m_context, GetRprObject(src_frame_buffer), GetRprObject(dst_frame_buffer), normalizeOnly)
+    rprContextResolveFrameBuffer(m_context, GetRprObject(src_frame_buffer), GetRprObject(dst_frame_buffer), noDisplayGamma)
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
@@ -790,9 +826,21 @@ Status Camera::SetNearPlane(rpr_float near) {
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
+Status Camera::SetPostScale(rpr_float scale) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprCameraSetPostScale(GetRprObject(this), scale)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
 Status Camera::SetFarPlane(rpr_float far) {
     RPR_CPPWRAPER_CALL_PREFIX
     rprCameraSetFarPlane(GetRprObject(this), far)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
+Status Camera::SetUVDistortion(Image* image) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprCameraSetUVDistortion(GetRprObject(this), GetRprObject(image))
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
@@ -811,6 +859,12 @@ Status Shape::SetTransform(float const* transform, rpr_bool transpose) {
 Status Shape::SetVertexValue(rpr_int setIndex, rpr_int const* indices, rpr_float const* values, rpr_int indicesCount) {
     RPR_CPPWRAPER_CALL_PREFIX
     rprShapeSetVertexValue(GetRprObject(this), setIndex, indices, values, indicesCount)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
+Status Shape::SetPrimvar(rpr_uint key, rpr_float const * data, rpr_uint floatCount, rpr_uint componentCount, PrimvarInterpolationType interop) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprShapeSetPrimvar(GetRprObject(this), key, data, floatCount, componentCount, interop )
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
@@ -928,6 +982,12 @@ Status Shape::SetShadowCatcher(rpr_bool shadowCatcher) {
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
+Status Shape::SetShadowColor(rpr_float r, rpr_float g, rpr_float b) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprShapeSetShadowColor(GetRprObject(this), r,g,b)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
 Status Shape::SetReflectionCatcher(rpr_bool reflectionCatcher) {
     RPR_CPPWRAPER_CALL_PREFIX
     rprShapeSetReflectionCatcher(GetRprObject(this), reflectionCatcher)
@@ -964,6 +1024,12 @@ Status Light::SetGroupId(rpr_uint groupId) {
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
+Status Light::SetVisibilityFlag(LightInfo visibilityFlag, rpr_bool visible) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprLightSetVisibilityFlag(GetRprObject(this), visibilityFlag, visible)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
 Status Light::GetInfo(LightInfo info, size_t size, void* data, size_t* size_ret) {
     RPR_CPPWRAPER_CALL_PREFIX
     rprLightGetInfo(GetRprObject(this), info, size, data, size_ret)
@@ -991,6 +1057,12 @@ Status DiskLight::SetRadius(float radius) {
 Status DiskLight::SetAngle(float angle) {
     RPR_CPPWRAPER_CALL_PREFIX
     rprDiskLightSetAngle(GetRprObject(this), angle)
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
+Status DiskLight::SetInnerAngle(float angle) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprDiskLightSetInnerAngle(GetRprObject(this), angle)
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 
@@ -1320,6 +1392,12 @@ Status MaterialNode::SetInput(MaterialNodeInput in_input, rpr_uint in_value) {
 Status MaterialNode::SetInput(MaterialNodeInput in_input, Image* image) {
     RPR_CPPWRAPER_CALL_PREFIX
     rprMaterialNodeSetInputImageDataByKey(GetRprObject(this), in_input, GetRprObject(image))
+    RPR_CPPWRAPER_CALL_SUFFIX
+}
+
+Status MaterialNode::SetInput(MaterialNodeInput in_input, Light* light) {
+    RPR_CPPWRAPER_CALL_PREFIX
+    rprMaterialNodeSetInputLightDataByKey(GetRprObject(this), in_input, GetRprObject(light))
     RPR_CPPWRAPER_CALL_SUFFIX
 }
 

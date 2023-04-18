@@ -1,8 +1,20 @@
+/*****************************************************************************\
+*
+*  Module Name    ProRenderGLTF.h
+*  Project        AMD Radeon ProRender
+*
+*  Description    Radeon ProRender GLTF Interface header
+*
+*  Copyright(C) 2017-2021 Advanced Micro Devices, Inc. All rights reserved.
+*
+\*****************************************************************************/
+
 #ifndef __RPRGLTF_H
 #define __RPRGLTF_H
 
 
 #include <RadeonProRender.h>
+#include <RprLoadStore.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +43,10 @@ extern "C" {
 #define RPRGLTF_EXPORTFLAG_COPY_IMAGES_USING_OBJECTNAME (1 << 2) 
 // if flag enabled, export lights with both RPR and KHR extensions.
 #define RPRGLTF_EXPORTFLAG_KHR_LIGHT (1 << 3) 
+// if flag enabled, the Exporter may try to create images matching the GLTF PBR material spec.
+//                  For example, it takes both Metallic and Roughness images from RPR, and combine them into a single PbrMetallicRoughness.
+//					This process should improve the rendering of the GLTF on non-RPR renderer. But it will slow-down the export process as it needs to process & generate new images.
+#define RPRGLTF_EXPORTFLAG_BUILD_STD_PBR_IMAGES (1 << 4) 
 
 //
 // import flags :
@@ -56,10 +72,13 @@ struct RprGltfImportCallbacks
 @param scene            The scene at gltTF::scene is loaded and stored in this handle.
 @param callbacks        Callbacks to be used during scene parsing - set it to NULL if not used.
 @param importFlags      see RPRGLTF_IMPORTFLAG_* for more details - set it to 0 if not used.
+@param rprsCtx          new argument introduced in 2.02.6 API. can be NULL.
+                        This context is created/deleted with  rprsCreateContext/rprsDeleteContext.
+						It can be used to store additional data for the Export
 @return                 GLTF_SUCCESS if success, GLTF_ERROR_IMPORT or GLTF_ERROR_LOAD otherwise.
 */
 extern int rprImportFromGLTF(const char* filename, rpr_context context, rpr_material_system materialSystem, rpr_scene* scene,
-    RprGltfImportCallbacks *callbacks, unsigned int importFlags);
+    RprGltfImportCallbacks *callbacks, unsigned int importFlags, RPRS_context rprsCtx);
 
 /* Exports a list of Radeon ProRender scenes to a gltf file on disk.
 @param filename         The path to the gltf file to export. (For Unicode, you can encode the name with UTF-8)
@@ -68,9 +87,12 @@ extern int rprImportFromGLTF(const char* filename, rpr_context context, rpr_mate
 @param uberMatContext   The pre-initialized Radeon ProRender uber material system context handle to export API objects from.
 @param scenes           All exported scenes to be written out to the gltf file.
 @param exportFlags      (new parameter from RPR SDK 1.325) - see RPRGLTF_EXPORTFLAG_* for more details - set it to 0 if not used.
+@param rprsCtx          new argument introduced in 2.02.6 API. can be NULL.
+                        This context is created/deleted with  rprsCreateContext/rprsDeleteContext.
+						It can be used to read additional data after an Import.
 @return                 GLTF_SUCCESS if success, GLTF_ERROR_EXPORT or GLTF_ERROR_SAVE otherwise.
 */
-extern int rprExportToGLTF(const char* filename, rpr_context context, rpr_material_system materialSystem_NOT_USED, const rpr_scene* scenes, size_t sceneCount, unsigned int exportFlags);
+extern int rprExportToGLTF(const char* filename, rpr_context context, rpr_material_system materialSystem_NOT_USED, const rpr_scene* scenes, size_t sceneCount, unsigned int exportFlags, RPRS_context rprsCtx);
 
 
 /*
@@ -120,6 +142,9 @@ rprGLTF_AssignParentGroupToGroup("head", "body");
 the groups with no parent will be at the root of the scene.
 the call order of  rprGLTF_AssignShapeToGroup  and  rprGLTF_AssignParentGroupToGroup  doesn't matter
 
+Note that for rprGLTF_SetTransformGroup and rprGLTF_GetTransformGroup, matrixComponents is an array of 10 floats in the following order: 
+       0-2:Translation, 3-6:RotationQuaternion,  7-9:Scale
+
 then, call rprExportToGLTF. Internally this will export the hierarchy to the GLTF, and clean the group list for next export.
 
 -- Usage for Import
@@ -139,7 +164,8 @@ extern int rprGLTF_AssignShapeToGroup(rpr_shape shape, const rpr_char* groupName
 extern int rprGLTF_AssignCameraToGroup(rpr_camera camera, const rpr_char* groupName);
 extern int rprGLTF_AssignLightToGroup(rpr_light light, const rpr_char* groupName);
 extern int rprGLTF_AssignParentGroupToGroup(const rpr_char* groupChild, const rpr_char* groupParent);
-extern int rprGLTF_SetTransformGroup(const rpr_char* groupChild, float* matrixComponents);
+extern int rprGLTF_SetTransformGroup(const rpr_char* groupChild, const float* matrixComponents);
+extern int rprGLTF_GetTransformGroup(const rpr_char * groupChild, float * matrixComponents);
 extern int rprGLTF_GetParentGroupFromShape(rpr_shape shape, size_t size, rpr_char* groupName, size_t* size_ret);
 extern int rprGLTF_GetParentGroupFromCamera(rpr_camera camera, size_t size, rpr_char* groupName, size_t* size_ret);
 extern int rprGLTF_GetParentGroupFromLight(rpr_light light, size_t size, rpr_char* groupName, size_t* size_ret);
@@ -207,8 +233,9 @@ typedef _rprgltf_animation rprgltf_animation;
 //return null if not animation exists for animIndex
 extern const rprgltf_animation* rprGLTF_GetAnimation(int animIndex);
 
-// make sure the pointers specified inside rprgltf_animation structure  ( groupName2, timeKeys, transformValues) stay available from this call to the rprExportToGLTF call.
-// after that, they won't be used anymore by gltf library.
+// before 2.01.6 SDK : make sure the pointers specified inside rprgltf_animation structure  ( groupName2, timeKeys, transformValues) stay available from this call to the rprExportToGLTF call.
+//                     after that, they won't be used anymore by gltf library.
+// from   2.01.6 SDK : GLTF library will copy the animation buffers internally until the rprExportToGLTF call. So pointers given to rprGLTF_AddAnimation don't need to be kept by the API user.
 // return RPR_SUCCESS if success.
 extern int rprGLTF_AddAnimation(const rprgltf_animation* anim);
 

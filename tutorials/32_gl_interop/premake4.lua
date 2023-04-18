@@ -2,6 +2,12 @@ project "32_gl_interop"
     kind "ConsoleApp"
     location "../build"
     files { "../32_gl_interop/**.h", "../32_gl_interop/**.cpp"} 
+    files { "../common/common.cpp","../common/common.h"}
+
+    -- remove filters for Visual Studio
+    vpaths { [""] = { "../32_gl_interop/**.h", "../32_gl_interop/**.cpp","../common/common.cpp","../common/common.h"} }
+
+
     includedirs{ "../../RadeonProRender/inc" } 
 
 	if os.istarget("windows") then
@@ -11,7 +17,7 @@ project "32_gl_interop"
     	includedirs{ "../../3rdParty/glew/include"} 	
 	end
 	
-    buildoptions "-std=c++11"
+    buildoptions "-std=c++14"
 
 	configuration {"x64"}
 
@@ -23,6 +29,7 @@ project "32_gl_interop"
     if os.istarget("linux") then
         links {"glut"}
         links {"GL"}
+	    links {"pthread"}
     end
     if os.istarget("macosx") then
          linkoptions{"-framework OpenGL", "-framework GLUT"}   

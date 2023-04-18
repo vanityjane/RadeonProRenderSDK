@@ -1,3 +1,13 @@
+/*****************************************************************************\
+*
+*  Module Name    RprTools.cpp
+*  Project        AMD Radeon ProRender
+*
+*  Description    Radeon ProRender Interface header
+*
+*  Copyright(C) 2017-2021 Advanced Micro Devices, Inc. All rights reserved.
+*
+\*****************************************************************************/
 
 #include "RprTools.h"
 #include <vector>
@@ -5,6 +15,7 @@
 #include <cstring>
 #include <memory>
 #include <unordered_map>
+#include <regex>
 
 
 //return true if same string (case insensitive)
@@ -79,9 +90,10 @@ bool IsDeviceNameWhitelisted(const char* deviceName, RPR_TOOLS_OS os)
 {
 	//
 	//this is the list of compatible devices known by the Radeon ProRender team.
-	//no need of case sensitivity
+	//no need of case sensitivity for "exact" and "partial" vectors
 	std::vector<std::string> listOfKnownCompatibleDevices_exact; // exact names, example : "AMD Radeon (TM) Pro WX 4100 Graphics"
 	std::vector<std::string> listOfKnownCompatibleDevices_partial; // partial names, example : "WX 4100"
+	std::vector<std::string> listOfKnownCompatibleDevices_regex; // example: "(.*) RX 6(.*)00 XT"
 
 	//AMD
 	listOfKnownCompatibleDevices_partial.push_back("FirePro W600");
@@ -160,6 +172,7 @@ bool IsDeviceNameWhitelisted(const char* deviceName, RPR_TOOLS_OS os)
 	listOfKnownCompatibleDevices_partial.push_back("Radeon Pro 580");
 	listOfKnownCompatibleDevices_partial.push_back("FirePro D500");
 	listOfKnownCompatibleDevices_partial.push_back("FirePro D700");
+	listOfKnownCompatibleDevices_partial.push_back("W6800");
 
 
 	// partial names - WxxxM
@@ -175,6 +188,8 @@ bool IsDeviceNameWhitelisted(const char* deviceName, RPR_TOOLS_OS os)
 	listOfKnownCompatibleDevices_partial.push_back("AMD Radeon VII"); 
 	listOfKnownCompatibleDevices_partial.push_back("Instinct MI"); 
 
+
+	// listOfKnownCompatibleDevices_regex.push_back("(.*) RX 6(.*)00 XT"); <- not needed as  "Radeon RX"  is already included in listOfKnownCompatibleDevices_partial
 
 
 	for (std::vector<std::string>::iterator iCompatibleDevices = listOfKnownCompatibleDevices_exact.begin() ; iCompatibleDevices != listOfKnownCompatibleDevices_exact.end(); ++iCompatibleDevices)
@@ -193,6 +208,12 @@ bool IsDeviceNameWhitelisted(const char* deviceName, RPR_TOOLS_OS os)
 			//compatible device found
 			return true;
 		}
+	}
+
+	for ( const auto& i : listOfKnownCompatibleDevices_regex )
+	{
+		if ( std::regex_match(deviceName, std::regex(i) ) )
+			return true; //compatible device found
 	}
 
 	return false;

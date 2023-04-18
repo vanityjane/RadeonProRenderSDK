@@ -1,18 +1,20 @@
 /*****************************************************************************\
 *
-*  Module Name    simple_render.cpp
+*  Module Name    Curve Demo
 *  Project        Radeon ProRender rendering tutorial
 *
 *  Description    Radeon ProRender SDK tutorials 
 *
-*  Copyright 2011 - 2017 Advanced Micro Devices, Inc. (unpublished)
-*
-*  All rights reserved.  This notice is intended as a precaution against
-*  inadvertent publication and does not imply publication or any waiver
-*  of confidentiality.  The year included in the foregoing notice is the
-*  year of creation of the work.
+*  Copyright(C) 2011-2021 Advanced Micro Devices, Inc. All rights reserved.
 *
 \*****************************************************************************/
+
+
+//
+// Demo covering Curves rendering. 
+// Curves are often used for hair,grass.. rendering.
+//
+
 #include "RadeonProRender.h"
 #include "RprLoadStore.h"
 #include "Math/mathutils.h"
@@ -24,6 +26,10 @@
 #include <algorithm>
 #include <vector>
 
+RPRGarbageCollector g_gc;
+
+
+// return a random float between 0.0 and 1.0
 float draw()
 {
 	return (rand()&RAND_MAX)/(double)RAND_MAX;
@@ -32,41 +38,36 @@ float draw()
 int main()
 {
 	//	enable Radeon ProRender API trace
-	//	set this before any fr API calls
-	//	frContextSetParameter1u(0,RPR_CONTEXT_TRACING_ENABLED,1);
+	//	set this before any RPR API calls
+	//	rprContextSetParameterByKey1u(0,RPR_CONTEXT_TRACING_ENABLED,1);
 
-	std::cout << "Radeon ProRender SDK simple rendering tutorial.\n";
-	// Indicates whether the last operation has suceeded or not
-	rpr_int status = RPR_SUCCESS;
-	// Create OpenCL context using a single GPU 
-	rpr_context context = NULL;
+	std::cout << "-- Radeon ProRender SDK Demo --" << std::endl;
 
-	// Register Tahoe ray tracing plugin.
+	// the RPR context object.
+	rpr_context context = nullptr;
+
+	// Register the RPR DLL
 	rpr_int tahoePluginID = rprRegisterPlugin(RPR_PLUGIN_FILE_NAME); 
-	CHECK_NE(tahoePluginID , -1)
+	CHECK_NE(tahoePluginID , -1);
 	rpr_int plugins[] = { tahoePluginID };
 	size_t pluginCount = sizeof(plugins) / sizeof(plugins[0]);
 
 	// Create context using a single GPU 
-	CHECK( rprCreateContext(RPR_API_VERSION, plugins, pluginCount, RPR_CREATION_FLAGS_ENABLE_GPU0, NULL, NULL, &context) );
+	// note that multiple GPUs can be enabled for example with creation_flags = RPR_CREATION_FLAGS_ENABLE_GPU0 | RPR_CREATION_FLAGS_ENABLE_GPU1
+	CHECK( rprCreateContext(RPR_API_VERSION, plugins, pluginCount, g_ContextCreationFlags, g_contextProperties, NULL, &context) );
 
-	// Set active plugin.
+	// Set the active plugin.
 	CHECK(  rprContextSetActivePlugin(context, plugins[0]) );
+
+	std::cout << "RPR Context creation succeeded." << std::endl;
 
 
 	rpr_material_system matsys = nullptr;
 	CHECK( rprContextCreateMaterialSystem(context, 0, &matsys) );
-	// Check if it is created successfully
-	if (status != RPR_SUCCESS)
-	{
-		std::cout << "Context creation failed: check your OpenCL runtime and driver versions.\n";
-		return -1;
-	}
 
-	std::cout << "Context successfully created.\n";
 
 	// Create a scene
-	rpr_scene scene;
+	rpr_scene scene = nullptr;
 	CHECK( rprContextCreateScene(context, &scene) );
 
 	// Create point light
@@ -80,70 +81,35 @@ int main()
 		// Set transform for the light
 		CHECK(rprLightSetTransform(light, RPR_TRUE, &lightm.m00));
 
-		// Set light radiant power in Watts
-		CHECK(rprPointLightSetRadiantPower3f(light, 255, 241, 224));
+		// Set light radiant power
+		CHECK(rprPointLightSetRadiantPower3f(light, 255.0f*0.9f, 241.0f*0.9f, 224.0f*0.9f));
 
 		// Attach the light to the scene
 		CHECK(rprSceneAttachLight(scene, light));
 	}
+
 	// Create camera
 	rpr_camera camera = nullptr;
-	{
-		CHECK( rprContextCreateCamera(context, &camera) );
-
-		// Position camera in world space: 
-		// Camera position is (5,5,20)
-		// Camera aimed at (0,0,0)
-		// Camera up vector is (0,1,0)
-		CHECK( rprCameraLookAt(camera, 0, 5, 20, 0, 1, 0, 0, 1, 0) );
-
-		CHECK( rprCameraSetFocalLength(camera, 75.f) );
-
-		// Set camera for the scene
-		CHECK( rprSceneSetCamera(scene, camera) );
-	}
-	// Set scene to render for the context
+	CHECK( rprContextCreateCamera(context, &camera) );
+	CHECK( rprCameraLookAt(camera, 0, 5, 20, 0, 1, 0, 0, 1, 0) );
+	CHECK( rprCameraSetFocalLength(camera, 75.f) );
+	CHECK( rprSceneSetCamera(scene, camera) );
 	CHECK( rprContextSetScene(context, scene) );
 
-	// Create plane mesh
-	rpr_shape plane = nullptr;
-	{
-		CHECK(rprContextCreateMesh(context,
-			(rpr_float const*)&plane_data[0], 4, sizeof(vertex),
-			(rpr_float const*)((char*)&plane_data[0] + sizeof(rpr_float) * 3), 4, sizeof(vertex),
-			(rpr_float const*)((char*)&plane_data[0] + sizeof(rpr_float) * 6), 4, sizeof(vertex),
-			(rpr_int const*)indices, sizeof(rpr_int),
-			(rpr_int const*)indices, sizeof(rpr_int),
-			(rpr_int const*)indices, sizeof(rpr_int),
-			num_face_vertices, 2, &plane));
 
-		// Add plane into the scene
-		CHECK(rprSceneAttachShape(scene, plane));
-	}
+	CreateAMDFloor(context, scene, matsys, g_gc, 1.0, 1.0);
 
-	// Create simple diffuse shader
-	rpr_material_node diffuse = nullptr;
-	{
-		CHECK( rprMaterialSystemCreateNode(matsys, RPR_MATERIAL_NODE_DIFFUSE, &diffuse) );
-
-		// Set diffuse color parameter to gray
-		CHECK( rprMaterialNodeSetInputFByKey(diffuse, RPR_MATERIAL_INPUT_COLOR, 0.5f, 0.5f, 0.5f, 1.f) );
-
-		// Set shader for cube & plane meshes
-		CHECK( rprShapeSetMaterial(plane, diffuse) );
-	}
 	// Create framebuffer to store rendering result
-	rpr_framebuffer_desc desc;
-	desc.fb_width = 800;
-	desc.fb_height = 600;
+	rpr_framebuffer_desc desc = { 800,600 };
 
 	// 4 component 32-bit float value each
 	rpr_framebuffer_format fmt = {4, RPR_COMPONENT_TYPE_FLOAT32};
-	rpr_framebuffer frame_buffer;
+	rpr_framebuffer frame_buffer = nullptr;
+	rpr_framebuffer frame_buffer_resolved = nullptr;
 	CHECK( rprContextCreateFrameBuffer(context, fmt, &desc, &frame_buffer) );
+	CHECK( rprContextCreateFrameBuffer(context, fmt, &desc, &frame_buffer_resolved) );
 
-	// Clear framebuffer to black color
-	CHECK( rprFrameBufferClear(frame_buffer) );
+
 
 	// Set framebuffer for the context
 	CHECK( rprContextSetAOV(context, RPR_AOV_COLOR, frame_buffer) );
@@ -155,6 +121,8 @@ int main()
 	//It works with StartPoint CtrlPoint CtrlPoint EndPoint
 	rpr_curve newCurve = 0;
 	
+	const float shiftFactor = 0.2f; //  0.0:curves are aligned   -  if increased, curves are spreading on the grid
+
 	int nPoints = 0;
 	const int n = 12;
 	std::vector<float> cps;
@@ -165,8 +133,8 @@ int main()
 	for(int j=0; j<n; j++) for(int i=0; i<n; i++)
 	{
 		const float width = 5.f;
-		float x = (i/(float)n - 0.5f)*width;
-		float z = (j/(float)n - 0.5f)*width;
+		float x = (i/(float)n - 0.5f)*width  +(draw()-0.5f)*shiftFactor;
+		float z = (j/(float)n - 0.5f)*width  +(draw()-0.5f)*shiftFactor;
 
 		const float length = 0.1f;
 		int nSegs = 8;
@@ -216,36 +184,35 @@ int main()
 	CHECK(rprMaterialNodeSetInputFByKey(newDiffuse_red, RPR_MATERIAL_INPUT_COLOR, 1.0f, 0.5f, 0.5f, 1.f));
 	CHECK(rprCurveSetMaterial(newCurve, newDiffuse_red));
 
+	// like any shape, a Curve needs to be attached to scene.
 	CHECK(rprSceneAttachCurve(scene, newCurve));
 
+	// set the rendering gamma
+	CHECK( rprContextSetParameterByKey1f(context, RPR_CONTEXT_DISPLAY_GAMMA , 1.0f ) );
 
-	// Progressively render an image
-	for (int i = 0; i < NUM_ITERATIONS; ++i)
-	{
-		CHECK(rprContextRender(context));
-	}
+	// Render the scene
+	CHECK(rprContextSetParameterByKey1u(context,RPR_CONTEXT_ITERATIONS,NUM_ITERATIONS));
+	CHECK( rprFrameBufferClear(frame_buffer) );
+	CHECK(rprContextRender(context));
+	CHECK(rprContextResolveFrameBuffer(context,frame_buffer,frame_buffer_resolved,false));
 
 	std::cout << "Rendering finished.\n";
 
 	// Save the result to file
-	CHECK(rprFrameBufferSaveToFile(frame_buffer, "50.png"));
+	CHECK(rprFrameBufferSaveToFile(frame_buffer_resolved, "50.png"));
 
 	// Release the stuff we created
 	CHECK(rprObjectDelete(newDiffuse_red));newDiffuse_red=nullptr;
 	CHECK(rprObjectDelete(matsys));matsys=nullptr;
-	CHECK(rprObjectDelete(plane));plane=nullptr;
 	CHECK(rprObjectDelete(newCurve));newCurve=nullptr;
 	CHECK(rprObjectDelete(light));light=nullptr;
-	CHECK(rprObjectDelete(diffuse));diffuse=nullptr;
+	g_gc.GCClean();
 	CHECK(rprObjectDelete(scene));scene=nullptr;
 	CHECK(rprObjectDelete(camera));camera=nullptr;
 	CHECK(rprObjectDelete(frame_buffer));frame_buffer=nullptr;
+	CHECK(rprObjectDelete(frame_buffer_resolved));frame_buffer_resolved=nullptr;
 	CheckNoLeak(context);
 	CHECK(rprObjectDelete(context));context=nullptr; // Always delete the RPR Context in last.
 	return 0;
 }
 
-
-// Things to try in this tutorial:
-// 1) As you probably notice the curve is made out of cylinder which produce small hole, so you should make sure your curve has enough control point to avoid this effect
-// 2) You can try to add more point, change radius, add more curve, ...

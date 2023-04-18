@@ -1,17 +1,12 @@
 /*****************************************************************************\
 *
-*  Module Name    main.cpp
+*  Module Name    Tiled Rendering
 *  Project        Radeon pro render rendering tutorial
 *
 *  Description    How to render a scene using tiles. This doesn't require you to
-                  allocate the full framebuffer.
+				  allocate the full framebuffer.
 *
-*  Copyright 2011 - 2019 Advanced Micro Devices, Inc. (unpublished)
-*
-*  All rights reserved.  This notice is intended as a precaution against
-*  inadvertent publication and does not imply publication or any waiver
-*  of confidentiality.  The year included in the foregoing notice is the
-*  year of creation of the work.
+*  Copyright(C) 2011-2021 Advanced Micro Devices, Inc. All rights reserved.
 *
 \*****************************************************************************/
 #include "RadeonProRender.h"
@@ -26,6 +21,14 @@
 #include <iostream>
 #include <vector>
 #include <string>
+
+
+//
+// This demo illustrates how to break down the framebuffer into smaller render regions (tiles)
+//
+//
+
+
 
 //-------------------Utilities-----------------------------
 static void StudyErrorCode(rpr_int errorCode, rpr_context context__ = nullptr)
@@ -102,9 +105,7 @@ void rprextMultiTileRender(sFrameBufferMetadata& meta, rpr_scene scene, rpr_cont
 	printf("  Tiled offset:       %f,%f\n", -tilesXf / 2.0f + .5f, -tilesYf / 2.0f + .5f);
 
 	//allocate the frambuffer data
-	rpr_framebuffer_desc desc;
-	desc.fb_width = meta.mTileSizeX;
-	desc.fb_height = meta.mTileSizeY;
+	rpr_framebuffer_desc desc = { (rpr_uint)meta.mTileSizeX , (rpr_uint)meta.mTileSizeY };
 	rpr_framebuffer_format fmt = { 4, RPR_COMPONENT_TYPE_FLOAT32 };
 
 	rpr_framebuffer frame_buffer = NULL; status = rprContextCreateFrameBuffer(context, fmt, &desc, &frame_buffer); CHECK(status);
@@ -192,39 +193,30 @@ int main()
 	//	set this before any rpr API calls
 	//	rprContextSetParameterByKey1u(0,RPR_CONTEXT_TRACING_ENABLED,1);
 
-	std::cout << "Radeon ProRender SDK simple rendering tutorial.\n";
-	// Indicates whether the last operation has suceeded or not
-	rpr_int status = RPR_SUCCESS;
-	// Create OpenCL context using a single GPU 
-	rpr_context context = NULL;
+	// the RPR context object.
+	rpr_context context = nullptr;
 
-	// Register Tahoe ray tracing plugin.
+	// Register the RPR DLL
 	rpr_int tahoePluginID = rprRegisterPlugin(RPR_PLUGIN_FILE_NAME); 
-	CHECK_NE(tahoePluginID , -1)
+	CHECK_NE(tahoePluginID , -1);
 	rpr_int plugins[] = { tahoePluginID };
 	size_t pluginCount = sizeof(plugins) / sizeof(plugins[0]);
 
 	// Create context using a single GPU 
-	CHECK( rprCreateContext(RPR_API_VERSION, plugins, pluginCount, RPR_CREATION_FLAGS_ENABLE_GPU0, NULL, NULL, &context) );
+	// note that multiple GPUs can be enabled for example with creation_flags = RPR_CREATION_FLAGS_ENABLE_GPU0 | RPR_CREATION_FLAGS_ENABLE_GPU1
+	CHECK( rprCreateContext(RPR_API_VERSION, plugins, pluginCount, g_ContextCreationFlags, g_contextProperties, NULL, &context) );
 
-	// Set active plugin.
+	// Set the active plugin.
 	CHECK(  rprContextSetActivePlugin(context, plugins[0]) );
+
+	std::cout << "RPR Context creation succeeded." << std::endl;
 
 
 	rpr_material_system matsys = nullptr;
 	CHECK( rprContextCreateMaterialSystem(context, 0, &matsys) );
-	// Check if it is created successfully
-	if (status != RPR_SUCCESS)
-	{
-		std::cout << "Context creation failed: check your OpenCL runtime and driver versions.\n";
-		return -1;
-	}
-
-	std::cout << "Context successfully created.\n";
-
 
 	rpr_scene scene = NULL;
-	status = rprsImport("../../Resources/Meshes/matball.rprs", context, matsys, &scene, false); CHECK(status);
+	CHECK( rprsImport("../../Resources/Meshes/matball.rprs", context, matsys, &scene, false, nullptr));
 
 
 #ifdef NO_TILE
@@ -274,8 +266,8 @@ int main()
 	// delete the RPR objects created during the last rprsImport call.
 	CHECK(rprsDeleteListImportedObjects(nullptr));
 
-	if (scene) { status = rprObjectDelete(scene); scene = NULL; CHECK(status); }
-	if (matsys) { status = rprObjectDelete(matsys); matsys = NULL; CHECK(status); }
+	if (scene) { CHECK( rprObjectDelete(scene)); }
+	if (matsys) { CHECK( rprObjectDelete(matsys)); }
 	CheckNoLeak(context);
 	CHECK(rprObjectDelete(context));context=nullptr; // Always delete the RPR Context in last.
 	return 0;

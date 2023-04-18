@@ -1,10 +1,10 @@
 /**********************************************************************
-Copyright ©2017 Advanced Micro Devices, Inc. All rights reserved.
+Copyright (C)2017 Advanced Micro Devices, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
-•   Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-•   Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or
+*   Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+*   Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or
 other materials provided with the distribution.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -21,6 +21,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 #include <cstring>
 
 #include "float3.h"
+#include "float4.h"
 
 namespace RadeonProRender
 {
@@ -188,6 +189,20 @@ namespace RadeonProRender
         return res;
     }
 
+       inline float4 operator * (matrix const& m, float4 const& v)
+    {
+        float4 res;
+
+        for (int i=0;i<4;++i)
+        {
+            res[i] = 0.f;
+            for (int j=0;j<4;++j)
+                res[i] += m.m[i][j] * v[j];
+        }
+
+        return res;
+    }
+
     inline matrix inverse(matrix const& m)
     {
         int indxc[4], indxr[4];
@@ -272,9 +287,7 @@ namespace RadeonProRender
 #undef m
 	}
 
-	///
-	/// Matrix decomposition based on: http://tog.acm.org/resources/GraphicsGems/gemsii/unmatrix.c
-	///
+
 	inline int
 		decompose(matrix const& mat,
 			float3& translation,
@@ -288,7 +301,7 @@ namespace RadeonProRender
 		matrix pmat, invpmat, tinvpmat;
 		/* Vector4 type and functions need to be added to the common set. */
 		float4 prhs, psol;
-		float4 row[3], pdum3;
+		float3 row[3], pdum3;
 
 		locmat = mat;
 		/* Normalize the matrix. */
@@ -421,8 +434,6 @@ namespace RadeonProRender
 			scale *= -1;
 		}
 
-
-		// source : http://www.gregslabaugh.net/publications/euler.pdf
 		const float delta = 0.000001f;
 		if ( fabsf(row[0].z) <  1.0 - delta ) // if  row[0].z is not +1 or -1
 		{

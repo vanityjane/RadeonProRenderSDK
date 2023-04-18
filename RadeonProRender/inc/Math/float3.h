@@ -1,10 +1,10 @@
 /**********************************************************************
-Copyright ©2017 Advanced Micro Devices, Inc. All rights reserved.
+Copyright (C)2017 Advanced Micro Devices, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
-•   Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-•   Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or
+*   Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+*   Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or
 other materials provided with the distribution.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -32,23 +32,24 @@ namespace RadeonProRender
         float3 operator-() const        { return float3(-x, -y, -z); }
 
         float  sqnorm() const           { return x*x + y*y + z*z; }
+        float  norm() const             { return std::sqrt(x*x + y*y + z*z); }
         void   normalize()              { (*this)/=(std::sqrt(sqnorm()));} 
 
         float3& operator += (float3 const& o) { x+=o.x; y+=o.y; z+= o.z; return *this;}
         float3& operator -= (float3 const& o) { x-=o.x; y-=o.y; z-= o.z; return *this;}
         float3& operator *= (float3 const& o) { x*=o.x; y*=o.y; z*= o.z; return *this;}
+        float3& operator /= (float3 const& o) { x/=o.x; y/=o.y; z/= o.z; return *this;}
         float3& operator *= (float c) { x*=c; y*=c; z*= c; return *this;}
         float3& operator /= (float c) { float cinv = 1.f/c; x*=cinv; y*=cinv; z*=cinv; return *this;}
         friend std::ostream& operator<<(std::ostream& os, const float3& o);
 
-        float x, y, z, w;
+        float x, y, z, 
+            w; // in this library, float3 is aligned on float4
     };
-
-    typedef float3 float4;
 
     inline std::ostream& operator<<(std::ostream& os, const float3& o)
     {
-        os << "[" << o.x << ", " << o.y << ", " << o.z << ", " << o.w <<  "]";
+        os << "[" << o.x << ", " << o.y << ", " << o.z <<  "]";
         return os;
     }
 
@@ -70,11 +71,16 @@ namespace RadeonProRender
         return res*=v2;
     }
 
-    inline float3 operator*(float3 const& v1, float c)
+    inline float3 operator/(float3 const& v1, float3 const& v2)
     {
         float3 res = v1;
-        return res*=c;
+        return res/=v2;
     }
+
+    inline float3 operator+(float3 const& v1, float c) { return float3(v1.x+c, v1.y+c, v1.z+c); }
+    inline float3 operator-(float3 const& v1, float c) { return float3(v1.x-c, v1.y-c, v1.z-c); }
+    inline float3 operator*(float3 const& v1, float c) { return float3(v1.x*c, v1.y*c, v1.z*c); }
+    inline float3 operator/(float3 const& v1, float c) { return float3(v1.x/c, v1.y/c, v1.z/c); }
 
     inline float3 operator*(float c, float3 const& v1)
     {
